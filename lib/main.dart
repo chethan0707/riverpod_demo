@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final counterProvider = StateProvider((ref) => 1);
+final counterProvider = StreamProvider.family<int, int>((ref, start) {
+  final wsClient = ref.watch(websocketClientProvider);
+  return wsClient.getCounterStream(start);
+});
+
+final websocketClientProvider = Provider<WebSocketClient>(
+  (ref) {
+    return FakeWebSocketClient();
+  },
+);
 
 void main() {
   runApp(
@@ -60,68 +69,57 @@ class CounterPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final int counter = ref.watch(counterProvider);
-    ref.listen<int>(
-      counterProvider,
-      ((previous, next) => {
-            if (next >= 5)
-              {
-                showDialog(
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      content: const Text("Counter High!!!"),
-                      actions: [
-                        TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: const Text('Ok'))
-                      ],
-                    );
-                  },
-                )
-              }
-          }),
-    );
+    final AsyncValue<int> counter = ref.watch(counterProvider(5));
     return Scaffold(
       appBar: AppBar(
         title: const Text("Counter"),
-        actions: [
-          IconButton(
-              onPressed: () {
-                ref.invalidate(counterProvider);
-              },
-              icon: const Icon(Icons.refresh))
-        ],
+        // actions: [
+        //   IconButton(
+        //       onPressed: () {
+        //         ref.invalidate(counterProvider);
+        //       },
+        //       icon: const Icon(Icons.refresh))
+        // ],
       ),
       body: Center(
         child: Text(
-          counter.toString(),
+          counter.when(
+              data: (int value) => value.toString(),
+              error: (Object e, _) => e.toString(),
+              loading: () => 0.toString()),
           style: Theme.of(context).textTheme.displayMedium,
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () {
-          ref.read(counterProvider.notifier).state++;
-        },
       ),
     );
   }
 }
 
+// abstract class WebSocketClient {
+//   Stream<int> getCounterStream();
+// }
+
+// class FakeWebSocketClient implements WebSocketClient {
+//   @override
+//   Stream<int> getCounterStream() async* {
+//     int i = 0;
+//     while (true) {
+//       await Future.delayed(const Duration(milliseconds: 500));
+//       yield i++;
+//     }
+//   }
+// }
+
 abstract class WebSocketClient {
-  Stream<int> getCounterStream();
+  Stream<int> getCounterStream([int start]);
 }
 
 class FakeWebSocketClient implements WebSocketClient {
   @override
-  Stream<int> getCounterStream() async* {
-    int i = 0;
+  Stream<int> getCounterStream([int start = 0]) async* {
+    int i = start;
     while (true) {
-      await Future.delayed(const Duration(microseconds: 500));
       yield i++;
+      await Future.delayed(const Duration(milliseconds: 500));
     }
   }
 }
